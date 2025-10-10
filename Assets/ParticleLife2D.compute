@@ -1,0 +1,33 @@
+// ParticleRender2D.compute — minimale GPU-Drift zum Bewegtbild (keine Physik)
+
+#pragma kernel Move
+
+RWStructuredBuffer<float4> _Pos; // xy pos, z=0, w=size
+RWStructuredBuffer<float4> _Vel; // xy vel
+
+int _ParticleCount;
+float _DeltaTime;
+float2 _WorldMin;
+float2 _WorldMax;
+
+[numthreads(256,1,1)]
+void Move(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= (uint)_ParticleCount) return;
+/*
+    float2 p = _Pos[i].xy;
+    float2 v = _Vel[i].xy;
+
+    p += v * _DeltaTime;
+
+    // Wrap innerhalb der Welt (teleport am Rand)
+    if (p.x < _WorldMin.x) p.x = _WorldMax.x;
+    if (p.x > _WorldMax.x) p.x = _WorldMin.x;
+    if (p.y < _WorldMin.y) p.y = _WorldMax.y;
+    if (p.y > _WorldMax.y) p.y = _WorldMin.y;
+
+    _Pos[i] = float4(p, 0, _Pos[i].w);*/
+
+    return;
+}
