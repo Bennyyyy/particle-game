@@ -627,7 +627,7 @@ MonoBehaviour:
   worldMax: {x: 8, y: 5}
   particleSize: 0.03
   material: {fileID: 2100000, guid: 7147399f32c9140219202b6b87769b0a, type: 2}
-  quadMesh: {fileID: 0}
+  quadMesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
   gpuDrift: 1
   speed: 1
   compute: {fileID: 7200000, guid: 0eeed794505e14ba894b2ec68dea18f1, type: 3}
