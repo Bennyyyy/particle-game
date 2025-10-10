@@ -15,7 +15,7 @@ void Move(uint3 id : SV_DispatchThreadID)
 {
     uint i = id.x;
     if (i >= (uint)_ParticleCount) return;
-/*
+
     float2 p = _Pos[i].xy;
     float2 v = _Vel[i].xy;
 
@@ -27,7 +27,5 @@ void Move(uint3 id : SV_DispatchThreadID)
     if (p.y < _WorldMin.y) p.y = _WorldMax.y;
     if (p.y > _WorldMax.y) p.y = _WorldMin.y;
 
-    _Pos[i] = float4(p, 0, _Pos[i].w);*/
-
-    return;
+    _Pos[i] = float4(p, 0, _Pos[i].w);
 }
