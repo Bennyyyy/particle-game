@@ -36,7 +36,7 @@ int2 safe_floor_to_int2(float2 v)
     return int2((int)floor(v.x), (int)floor(v.y));
 }
 
-int2 particle_position_to_cell_position(const float2 particle_pos)
+int2 particle_position_to_grid_position(const float2 particle_pos)
 {
     const float2 cs = max(_CellSize2D, float2(1e-4, 1e-4));
     const float2 rel = (particle_pos - _WorldMin) / cs;
@@ -68,29 +68,29 @@ void clear_next(uint3 id : SV_DispatchThreadID)
 void hash_particles(uint3 id : SV_DispatchThreadID)
 {
     // guard
-    uint i = id.x;
+    const uint i = id.x;
     if (i >= (uint)_ParticleCount) return;
 
     float2 p = _Pos[i].xy;
     p = clamp(p, _WorldMin - 1e3, _WorldMax + 1e3);
-    uint h = grid_pos_to_grid_index(particle_position_to_cell_position(p));
+    uint h = grid_pos_to_grid_index(particle_position_to_grid_position(p));
 
-    int prevHead;
-    InterlockedExchange(_CellHead[h], (int)i, prevHead);
-    _Next[i] = prevHead; // -1 wenn leer
+    int prev_head;
+    InterlockedExchange(_CellHead[h], (int)i, prev_head);
+    _Next[i] = prev_head; // -1 wenn leer
 }
 
 float2 neighbour_force(uint i, float2 p)
 {
     float2 F = 0;
-    int2 c = particle_position_to_cell_position(p);
+    int2 c = particle_position_to_grid_position(p);
 
     // r cappen (Jam-Safety): max 5x5 Zellen
     float cs = max(_CellSize2D.x, 1e-4);
     int r = (int)ceil(_InteractRadius / cs);
-    r = clamp(r, 0, 2);
+    //r = clamp(r, 0, 2);
 
-    const int MAX_LIST_ITERS = 256; // pro Zelle
+    const int MAX_LIST_ITERS = 1024; // pro Zelle
 
     for (int y = -r; y <= r; y++)
         for (int x = -r; x <= r; x++)
@@ -149,7 +149,7 @@ void integrate(uint3 id : SV_DispatchThreadID)
     p += v * _DeltaTime;
 
     // Soft-Guard gegen Ausreißer (keine Kollisionen)
-    p = clamp(p, _WorldMin - 100, _WorldMax + 100);
+    p = clamp(p, _WorldMin, _WorldMax);
 
     _Pos[i] = float4(p, 0, _Pos[i].w);
     _Vel[i] = float4(v, 0, 0);
