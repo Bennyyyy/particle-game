@@ -1,18 +1,145 @@
-// ParticleRender2D.compute — minimale GPU-Drift zum Bewegtbild (keine Physik)
+// ParticleLife2D.compute — 2D, nur Anziehung/Abstoßung (keine Kollisionen)
+// Metal-safe (keine .Length), TG = 256
 
-#pragma kernel Move
+#pragma kernel clear_grid
+#pragma kernel clear_next
+#pragma kernel hash_particles
+#pragma kernel compute_forces
+#pragma kernel integrate
 
 RWStructuredBuffer<float4> _Pos; // xy pos, z=0, w=size
 RWStructuredBuffer<float4> _Vel; // xy vel
+RWStructuredBuffer<int> _CellHead; // head je Zelle
+RWStructuredBuffer<int> _Next; // verkettete Liste
 
 int _ParticleCount;
-float _DeltaTime;
+int _CellCount;
+int2 _GridRes2D;
 float2 _WorldMin;
 float2 _WorldMax;
+float2 _CellSize2D;
+
+float _Attract, _Repel, _InteractRadius, _Damping, _DeltaTime;
+
+// --- Helpers ---
+uint grid_pos_to_grid_index(int2 pos)
+{
+    pos = clamp(pos, int2(0, 0), _GridRes2D - 1);
+    return pos.x + _GridRes2D.x * pos.y;
+}
+
+int2 safe_floor_to_int2(float2 v)
+{
+    v = clamp(v, -1e20, 1e20);
+    if (isnan(v.x)) v.x = 0;
+    if (isnan(v.y)) v.y = 0;
+    return int2((int)floor(v.x), (int)floor(v.y));
+}
+
+int2 particle_position_to_cell_position(const float2 particle_pos)
+{
+    const float2 cs = max(_CellSize2D, float2(1e-4, 1e-4));
+    const float2 rel = (particle_pos - _WorldMin) / cs;
+    return safe_floor_to_int2(rel);
+}
+
+// --- Kernels ---
+[numthreads(256,1,1)]
+void clear_grid(uint3 id : SV_DispatchThreadID)
+{
+    // guard
+    uint idx = id.x;
+    if (idx >= (uint)_CellCount) return;
+
+    _CellHead[idx] = -1;
+}
 
 [numthreads(256,1,1)]
-void Move(uint3 id : SV_DispatchThreadID)
+void clear_next(uint3 id : SV_DispatchThreadID)
 {
+    // guard
+    uint i = id.x;
+    if (i >= (uint)_ParticleCount) return;
+
+    _Next[i] = -1;
+}
+
+[numthreads(256,1,1)]
+void hash_particles(uint3 id : SV_DispatchThreadID)
+{
+    // guard
+    uint i = id.x;
+    if (i >= (uint)_ParticleCount) return;
+
+    float2 p = _Pos[i].xy;
+    p = clamp(p, _WorldMin - 1e3, _WorldMax + 1e3);
+    uint h = grid_pos_to_grid_index(particle_position_to_cell_position(p));
+
+    int prevHead;
+    InterlockedExchange(_CellHead[h], (int)i, prevHead);
+    _Next[i] = prevHead; // -1 wenn leer
+}
+
+float2 neighbour_force(uint i, float2 p)
+{
+    float2 F = 0;
+    int2 c = particle_position_to_cell_position(p);
+
+    // r cappen (Jam-Safety): max 5x5 Zellen
+    float cs = max(_CellSize2D.x, 1e-4);
+    int r = (int)ceil(_InteractRadius / cs);
+    r = clamp(r, 0, 2);
+
+    const int MAX_LIST_ITERS = 256; // pro Zelle
+
+    for (int y = -r; y <= r; y++)
+        for (int x = -r; x <= r; x++)
+        {
+            uint h = grid_pos_to_grid_index(c + int2(x, y));
+            int j = _CellHead[h];
+            int it = 0;
+            [loop] while (j != -1 && it < MAX_LIST_ITERS)
+            {
+                if ((uint)j != i)
+                {
+                    float2 d = _Pos[j].xy - p;
+                    float dist = length(d) + 1e-5;
+                    if (dist < _InteractRadius)
+                    {
+                        float2 n = d / dist;
+                        float w = 1.0 - (dist / _InteractRadius);
+                        float f = _Attract * w - _Repel * (w * w);
+                        F += n * f;
+                    }
+                }
+                j = _Next[j];
+                it++;
+            }
+        }
+    return F;
+}
+
+[numthreads(256,1,1)]
+void compute_forces(uint3 id : SV_DispatchThreadID)
+{
+    // guard
+    uint i = id.x;
+    if (i >= (uint)_ParticleCount) return;
+
+    float2 p = _Pos[i].xy;
+    float2 v = _Vel[i].xy;
+
+    float2 F = neighbour_force(i, p);
+    v += F * _DeltaTime;
+    v *= _Damping;
+
+    _Vel[i].xy = v;
+}
+
+[numthreads(256,1,1)]
+void integrate(uint3 id : SV_DispatchThreadID)
+{
+    // guard
     uint i = id.x;
     if (i >= (uint)_ParticleCount) return;
 
@@ -21,11 +148,9 @@ void Move(uint3 id : SV_DispatchThreadID)
 
     p += v * _DeltaTime;
 
-    // Wrap innerhalb der Welt (teleport am Rand)
-    if (p.x < _WorldMin.x) p.x = _WorldMax.x;
-    if (p.x > _WorldMax.x) p.x = _WorldMin.x;
-    if (p.y < _WorldMin.y) p.y = _WorldMax.y;
-    if (p.y > _WorldMax.y) p.y = _WorldMin.y;
+    // Soft-Guard gegen Ausreißer (keine Kollisionen)
+    p = clamp(p, _WorldMin - 100, _WorldMax + 100);
 
     _Pos[i] = float4(p, 0, _Pos[i].w);
+    _Vel[i] = float4(v, 0, 0);
 }
