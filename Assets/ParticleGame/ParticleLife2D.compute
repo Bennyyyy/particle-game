@@ -19,12 +19,23 @@ float2 _WorldMin;
 float2 _WorldMax;
 float2 _CellSize2D;
 
-float _Attract, _Repel, _InteractRadius, _Damping, _DeltaTime;
+float _Attract, _Repel, _InteractRadius, _Damping, _DeltaTime, _MinDistance;
 
 // --- Helpers ---
+int wrap1(int a, int m)
+{
+    return (a % m + m) % m;
+} // immer 0..m-1
+
+int2 wrap2(int2 c, int2 m)
+{
+    return int2(wrap1(c.x, m.x), wrap1(c.y, m.y));
+}
+
 uint grid_pos_to_grid_index(int2 pos)
 {
-    pos = clamp(pos, int2(0, 0), _GridRes2D - 1);
+    //pos = clamp(pos, int2(0, 0), _GridRes2D - 1);
+    pos = wrap2(pos, _GridRes2D);
     return pos.x + _GridRes2D.x * pos.y;
 }
 
@@ -42,6 +53,18 @@ int2 particle_position_to_grid_position(const float2 particle_pos)
     const float2 rel = (particle_pos - _WorldMin) / cs;
     return safe_floor_to_int2(rel);
 }
+
+float2 torus_delta(float2 a, float2 b, float2 minW, float2 maxW)
+{
+    float2 size = max(maxW - minW, float2(1e-4, 1e-4));
+    float2 d = b - a;
+    if (d.x > 0.5 * size.x) d.x -= size.x;
+    if (d.x < -0.5 * size.x) d.x += size.x;
+    if (d.y > 0.5 * size.y) d.y -= size.y;
+    if (d.y < -0.5 * size.y) d.y += size.y;
+    return d;
+}
+
 
 // --- Kernels ---
 [numthreads(256,1,1)]
@@ -102,13 +125,26 @@ float2 neighbour_force(uint i, float2 p)
             {
                 if ((uint)j != i)
                 {
-                    float2 d = _Pos[j].xy - p;
+                    //float2 d = _Pos[j].xy - p;
+                    float2 d = torus_delta(p, _Pos[j].xy, _WorldMin, _WorldMax);
                     float dist = length(d) + 1e-5;
+
                     if (dist < _InteractRadius)
                     {
                         float2 n = d / dist;
-                        float w = 1.0 - (dist / _InteractRadius);
-                        float f = _Attract * w - _Repel * (w * w);
+
+                        // user force
+                        float w = 1.0 - dist / _InteractRadius;
+                        float f = _Attract * w; // - _Repel * (w * w);
+
+                        // min distance force
+                        if (dist < _MinDistance)
+                        {
+                            const float wMinDistance = 1.0 - dist / _MinDistance;
+                            const float fMinDistance = -1 * wMinDistance;
+                            f = min(f, fMinDistance);
+                        }
+
                         F += n * f;
                     }
                 }
@@ -134,6 +170,17 @@ void compute_forces(uint3 id : SV_DispatchThreadID)
     v *= _Damping;
 
     _Vel[i].xy = v;
+    //_Vel[i].xy = float4(0.1, 0.1, 0, 0);
+}
+
+float2 wrap_2d(float2 p, float2 minW, float2 maxW)
+{
+    // Weltgröße (Schutz gegen 0)
+    float2 size = max(maxW - minW, float2(1e-4, 1e-4));
+    // In [0,1) bringen, auch für negative Werte robust (frac(x) = x - floor(x))
+    float2 rel = (p - minW) / size;
+    rel = frac(rel);
+    return minW + rel * size;
 }
 
 [numthreads(256,1,1)]
@@ -149,7 +196,10 @@ void integrate(uint3 id : SV_DispatchThreadID)
     p += v * _DeltaTime;
 
     // Soft-Guard gegen Ausreißer (keine Kollisionen)
-    p = clamp(p, _WorldMin, _WorldMax);
+    //p = clamp(p, _WorldMin, _WorldMax);
+
+    // --- Toroidales Wrapping ---
+    p = wrap_2d(p, _WorldMin, _WorldMax);
 
     _Pos[i] = float4(p, 0, _Pos[i].w);
     _Vel[i] = float4(v, 0, 0);

@@ -4,8 +4,11 @@ public class ParticleLife2D : MonoBehaviour
 {
     [Header("Counts")] public int count = 100_000;
 
-    [Header("Forces (live-tunable)")] [Range(0, 5f)]
+    [Header("Forces (live-tunable)")] [Range(-5, 5f)]
     public float attract = 1.5f;
+    
+    [Range(0.01f, 0.1f)]
+    public float minDistance = 0.05f;
 
     [Range(0, 5f)]       public float repel          = 2.0f;
     [Range(0.05f, 2f)]   public float interactRadius = 0.6f;
@@ -153,6 +156,7 @@ public class ParticleLife2D : MonoBehaviour
         compute.SetFloat("_InteractRadius", interactRadius);
         compute.SetFloat("_Damping", damping);
         compute.SetFloat("_DeltaTime", Time.deltaTime);
+        compute.SetFloat("_MinDistance", minDistance);
 
         // Dispatch (TG = 256 wie gewünscht)
         const int TG          = 256;

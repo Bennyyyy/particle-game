@@ -369,8 +369,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fcf7b6ae3ef7b45e7a6e2a82be080764, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ParticleLife2D
-  count: 5000
+  count: 500
   attract: 1.5
+  minDistance: 0.05
   repel: 2
   interactRadius: 0.117
   damping: 0.99
