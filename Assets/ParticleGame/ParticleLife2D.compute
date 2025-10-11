@@ -23,7 +23,7 @@ float2 _WorldMin;
 float2 _WorldMax;
 float2 _CellSize2D;
 
-float _Attract, _InteractRadius, _Damping, _DeltaTime, _MinDistance;
+float _InteractRadius, _Damping, _DeltaTime, _MinDistance, _GlobalAttractionMultiplayer;
 
 // --- Helpers ---
 int wrap1(int a, int m)
@@ -38,7 +38,7 @@ int2 wrap2(int2 c, int2 m)
 
 float pairAttr(uint ti, uint tj)
 {
-    return _AttractMat[ti * _TypeCount + tj];
+    return _AttractMat[ti * _TypeCount + tj] * _GlobalAttractionMultiplayer;
 }
 
 uint grid_pos_to_grid_index(int2 pos)

@@ -1,18 +1,18 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class ParticleLife2D : MonoBehaviour
 {
     [Header("Counts")] public int count = 100_000;
 
-    [Header("Forces (live-tunable)")] [Range(-1, 1f)]
-    public float attract = 0.5f;
+    [Header("Forces (live-tunable)")] [Range(0.01f, 0.1f)]
+    public float minDistance = 0.05f;
 
-    [Range(0.01f, 0.1f)] public float minDistance = 0.05f;
+    [Range(0.05f, 1f)]   public float interactRadius  = 0.6f;
+    [Range(0.70f, 1.0f)] public float dampingFactor   = 0.95f;
+    [Range(0.01f, 1.0f)] public float globalMultipler = 1f;
 
-    [Range(0.05f, 2f)]   public float interactRadius = 0.6f;
-    [Range(0.90f, 1.0f)] public float damping        = 0.99f;
-
-    [Header("Species")] public int typeCount = 3; // K
+    [Header("Species")] public int typeCount = 3;
 
     [Tooltip("Flattened row-major KxK (i*K + j)")]
     public float[] attractMat; // Länge K*K
@@ -61,6 +61,13 @@ public class ParticleLife2D : MonoBehaviour
         );
     }
 
+    // In deiner ParticleLife2D.cs (irgendwo in der Klasse hinzufügen)
+    public void ApplyAttractionMatrix()
+    {
+        if (attractMat == null || attractMat.Length != typeCount * typeCount) return;
+        if (attractBuffer != null) attractBuffer.SetData(attractMat);
+    }
+
     void Start()
     {
         Application.targetFrameRate = 60; // z. B. 60 FPS
@@ -102,10 +109,10 @@ public class ParticleLife2D : MonoBehaviour
 
         typeBuffer = new ComputeBuffer(count, sizeof(uint));
         uint[] types = new uint[count];
-        
+
         for (int i = 0; i < count; i++)
             types[i] = (uint)(i % typeCount);
-        
+
         typeBuffer.SetData(types);
 
 
@@ -209,13 +216,11 @@ public class ParticleLife2D : MonoBehaviour
     void Update()
     {
         // Live-Parameter → Compute
-        compute.SetFloat("_Attract", attract);
         compute.SetFloat("_InteractRadius", interactRadius);
-        compute.SetFloat("_Damping", damping);
+        compute.SetFloat("_Damping", dampingFactor);
+        compute.SetFloat("_GlobalAttractionMultiplayer", globalMultipler);
         compute.SetFloat("_DeltaTime", Time.deltaTime);
         compute.SetFloat("_MinDistance", minDistance);
-
-        attractBuffer.SetData(attractMat);
 
         // Dispatch (TG = 256 wie gewünscht)
         const int TG          = 256;
