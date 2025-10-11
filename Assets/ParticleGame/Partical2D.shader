@@ -23,6 +23,8 @@ Shader "Unlit/Particle2D"
             #include "UnityCG.cginc"
 
             StructuredBuffer<float4> _Pos; // xy pos, w size
+            StructuredBuffer<uint> _Type; // pro Instanz: Typindex
+            StructuredBuffer<float4> _TypeColor; // K Einträge (rgba 0..1)
             sampler2D _MainTex;
             float4 _MainTex_ST;
             float _Size;
@@ -38,6 +40,7 @@ Shader "Unlit/Particle2D"
             {
                 float4 pos:SV_POSITION;
                 float2 uv:TEXCOORD0;
+                float4 col:TEXCOORD1;
             };
 
             v2f vert(appdata v)
@@ -48,12 +51,16 @@ Shader "Unlit/Particle2D"
                 float2 worldXY = p.xy + v.vertex.xy * s;
                 o.pos = mul(UNITY_MATRIX_VP, float4(worldXY, 0, 1));
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+
+                uint t = _Type[v.id];
+                o.col = _TypeColor[t]; // Farbe pro Typ nachschlagen
                 return o;
             }
 
             fixed4 frag(v2f i) : SV_Target
             {
-                return tex2D(_MainTex, i.uv);
+                fixed4 c = tex2D(_MainTex, i.uv);
+                return c * i.col; // einfärben
             }
             ENDHLSL
         }

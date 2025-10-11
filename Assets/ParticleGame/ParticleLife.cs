@@ -6,12 +6,18 @@ public class ParticleLife2D : MonoBehaviour
 
     [Header("Forces (live-tunable)")] [Range(-1, 1f)]
     public float attract = 0.5f;
-    
-    [Range(0.01f, 0.1f)]
-    public float minDistance = 0.05f;
+
+    [Range(0.01f, 0.1f)] public float minDistance = 0.05f;
 
     [Range(0.05f, 2f)]   public float interactRadius = 0.6f;
     [Range(0.90f, 1.0f)] public float damping        = 0.99f;
+
+    [Header("Species")] public int typeCount = 3; // K
+
+    [Tooltip("Flattened row-major KxK (i*K + j)")]
+    public float[] attractMat; // Länge K*K
+
+    public Color[] typeColors; // Länge K
 
     [Header("2D World (XY)")] public Vector2 worldMin = new Vector2(-10f, -6f);
     public                           Vector2 worldMax = new Vector2(10f, 6f);
@@ -30,6 +36,10 @@ public class ParticleLife2D : MonoBehaviour
     int           kClearGrid, kClearNext, kAddParticlesToGrid, kForces,   kIntegrate;
     ComputeBuffer posBuffer,  velBuffer,  cellHead,            nextIndex, argsBuffer;
     Bounds        bigBounds;
+
+    ComputeBuffer typeBuffer;      // uint per particle
+    ComputeBuffer attractBuffer;   // float K*K
+    ComputeBuffer typeColorBuffer; // float4 K
 
     struct Int2
     {
@@ -50,7 +60,7 @@ public class ParticleLife2D : MonoBehaviour
             Mathf.Max(1, Mathf.FloorToInt(size.y / Mathf.Max(0.0001f, cellSize)))
         );
     }
-    
+
     void Start()
     {
         Application.targetFrameRate = 60; // z. B. 60 FPS
@@ -76,6 +86,43 @@ public class ParticleLife2D : MonoBehaviour
         if (quadMesh == null) quadMesh = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
 
         material.enableInstancing = true;
+
+        if (typeCount <= 0)
+        {
+            typeCount = 1;
+        }
+
+        if (attractMat == null || attractMat.Length != typeCount * typeCount)
+            attractMat = new float[typeCount * typeCount];
+        if (typeColors == null || typeColors.Length != typeCount)
+        {
+            typeColors = new Color[typeCount];
+            for (int k = 0; k < typeCount; k++) typeColors[k] = Color.HSVToRGB(k / (float)typeCount, 0.7f, 1f);
+        }
+
+        typeBuffer = new ComputeBuffer(count, sizeof(uint));
+        uint[] types = new uint[count];
+        
+        for (int i = 0; i < count; i++)
+            types[i] = (uint)(i % typeCount);
+        
+        typeBuffer.SetData(types);
+
+
+        attractBuffer   = new ComputeBuffer(typeCount                * typeCount, sizeof(float));
+        typeColorBuffer = new ComputeBuffer(typeCount, sizeof(float) * 4);
+
+        attractBuffer.SetData(attractMat);
+
+        var cols = new Vector4[typeCount];
+        for (int k = 0; k < typeCount; k++)
+        {
+            var c = typeColors[k];
+            cols[k] = new Vector4(c.r, c.g, c.b, c.a);
+        }
+
+        typeColorBuffer.SetData(cols);
+
 
         // Kernel IDs
         kClearGrid          = compute.FindKernel("clear_grid");
@@ -130,6 +177,7 @@ public class ParticleLife2D : MonoBehaviour
         compute.SetFloats("_CellSize2D", cellSize, cellSize);
         compute.SetInt("_ParticleCount", count);
         compute.SetInt("_CellCount", cellCount);
+        compute.SetInt("_TypeCount", typeCount);
 
         // Buffer Bindings
         compute.SetBuffer(kClearGrid, "_CellHead", cellHead);
@@ -138,17 +186,22 @@ public class ParticleLife2D : MonoBehaviour
         compute.SetBuffer(kAddParticlesToGrid, "_Pos", posBuffer);
         compute.SetBuffer(kAddParticlesToGrid, "_CellHead", cellHead);
         compute.SetBuffer(kAddParticlesToGrid, "_Next", nextIndex);
+        compute.SetBuffer(kAddParticlesToGrid, "_Type", typeBuffer);
 
         compute.SetBuffer(kForces, "_Pos", posBuffer);
         compute.SetBuffer(kForces, "_Vel", velBuffer);
         compute.SetBuffer(kForces, "_CellHead", cellHead);
         compute.SetBuffer(kForces, "_Next", nextIndex);
+        compute.SetBuffer(kForces, "_Type", typeBuffer);
+        compute.SetBuffer(kForces, "_AttractMat", attractBuffer);
 
         compute.SetBuffer(kIntegrate, "_Pos", posBuffer);
         compute.SetBuffer(kIntegrate, "_Vel", velBuffer);
 
         // Material → Pos-Buffer
         material.SetBuffer("_Pos", posBuffer);
+        material.SetBuffer("_Type", typeBuffer);
+        material.SetBuffer("_TypeColor", typeColorBuffer);
 
         Debug.Log($"ParticleLife2D: Grid {res.x}x{res.y}={cellCount} cells, Particles={count}");
     }
@@ -161,6 +214,8 @@ public class ParticleLife2D : MonoBehaviour
         compute.SetFloat("_Damping", damping);
         compute.SetFloat("_DeltaTime", Time.deltaTime);
         compute.SetFloat("_MinDistance", minDistance);
+
+        attractBuffer.SetData(attractMat);
 
         // Dispatch (TG = 256 wie gewünscht)
         const int TG          = 256;
@@ -193,5 +248,12 @@ public class ParticleLife2D : MonoBehaviour
         nextIndex = null;
         argsBuffer?.Release();
         argsBuffer = null;
+
+        typeBuffer?.Release();
+        typeBuffer = null;
+        attractBuffer?.Release();
+        attractBuffer = null;
+        typeColorBuffer?.Release();
+        typeColorBuffer = null;
     }
 }

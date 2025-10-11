@@ -12,6 +12,10 @@ RWStructuredBuffer<float4> _Vel; // xy vel
 RWStructuredBuffer<int> _CellHead; // head je Zelle
 RWStructuredBuffer<int> _Next; // verkettete Liste
 
+StructuredBuffer<uint> _Type; // pro Partikel: Typindex 0..K-1
+StructuredBuffer<float> _AttractMat; // K*K Werte, row-major
+int _TypeCount; // = K
+
 int _ParticleCount;
 int _CellCount;
 int2 _GridRes2D;
@@ -30,6 +34,11 @@ int wrap1(int a, int m)
 int2 wrap2(int2 c, int2 m)
 {
     return int2(wrap1(c.x, m.x), wrap1(c.y, m.y));
+}
+
+float pairAttr(uint ti, uint tj)
+{
+    return _AttractMat[ti * _TypeCount + tj];
 }
 
 uint grid_pos_to_grid_index(int2 pos)
@@ -64,7 +73,6 @@ float2 torus_delta(float2 a, float2 b, float2 minW, float2 maxW)
     if (d.y < -0.5 * size.y) d.y += size.y;
     return d;
 }
-
 
 // --- Kernels ---
 [numthreads(256,1,1)]
@@ -103,7 +111,7 @@ void add_particles_to_grid(uint3 id : SV_DispatchThreadID)
     _Next[i] = prev_head; // -1 wenn leer
 }
 
-float calc_force(const float distance)
+float calc_force(const float distance, const float attraction)
 {
     // min distance force
     if (distance < _MinDistance)
@@ -117,11 +125,11 @@ float calc_force(const float distance)
     }
     else
     {
-        return _Attract * (1 - (abs(2 * distance - _InteractRadius - _MinDistance) / _InteractRadius - _MinDistance));
+        return attraction * (1 - (abs(2 * distance - _InteractRadius - _MinDistance) / _InteractRadius - _MinDistance));
 
         // user force
         //const float w = 1.0 - distance / _InteractRadius;
-        //return _Attract * w;
+        //return attraction * w;
     }
 }
 
@@ -147,7 +155,12 @@ float2 neighbour_force(const uint particle_index, const float2 particle_pos)
 
                     if (distance < _InteractRadius)
                     {
-                        const float force = calc_force(distance);
+                        const uint ti = _Type[particle_index];
+                        const uint tj = _Type[current_particle_index];
+
+                        const float attraction = pairAttr(ti, tj);
+                        
+                        const float force = calc_force(distance, attraction);
 
                         const float2 normalized_direction_vector = distance_vector / distance;
                         totalForce += normalized_direction_vector * force;
