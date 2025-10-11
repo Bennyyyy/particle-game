@@ -51,6 +51,12 @@ public class ParticleLife2D : MonoBehaviour
             Mathf.Max(1, Mathf.FloorToInt(size.y / Mathf.Max(0.0001f, cellSize)))
         );
     }
+    
+    void Start()
+    {
+        Application.targetFrameRate = 60; // z. B. 60 FPS
+        QualitySettings.vSyncCount  = 0;  // VSync ausschalten, sonst hat es Vorrang!
+    }
 
     void OnEnable()
     {
