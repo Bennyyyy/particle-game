@@ -19,7 +19,7 @@ float2 _WorldMin;
 float2 _WorldMax;
 float2 _CellSize2D;
 
-float _Attract, _Repel, _InteractRadius, _Damping, _DeltaTime, _MinDistance;
+float _Attract, _InteractRadius, _Damping, _DeltaTime, _MinDistance;
 
 // --- Helpers ---
 int wrap1(int a, int m)
@@ -103,56 +103,60 @@ void add_particles_to_grid(uint3 id : SV_DispatchThreadID)
     _Next[i] = prev_head; // -1 wenn leer
 }
 
-float2 neighbour_force(uint i, float2 p)
+float calc_force(const float distance)
 {
-    float2 F = 0;
-    int2 c = particle_position_to_grid_position(p);
+    // min distance force
+    if (distance < _MinDistance)
+    {
+        //const float wMinDistance = dist / _MinDistance - 1;
+        //const float fMinDistance = wMinDistance;
+        //force = min(f, fMinDistance);
 
-    // r cappen (Jam-Safety): max 5x5 Zellen
-    float cs = max(_CellSize2D.x, 1e-4);
-    int r = (int)ceil(_InteractRadius / cs);
-    //r = clamp(r, 0, 2);
+        const float w = 1.0 - distance / _MinDistance;
+        return -1 * w;
+    }
+    else
+    {
+        return _Attract * (1 - (abs(2 * distance - _InteractRadius - _MinDistance) / _InteractRadius - _MinDistance));
 
-    const int MAX_LIST_ITERS = 1024; // pro Zelle
+        // user force
+        //const float w = 1.0 - distance / _InteractRadius;
+        //return _Attract * w;
+    }
+}
 
-    for (int y = -r; y <= r; y++)
-        for (int x = -r; x <= r; x++)
+float2 neighbour_force(const uint particle_index, const float2 particle_pos)
+{
+    float2 totalForce = 0;
+    const int2 grid_pos = particle_position_to_grid_position(particle_pos);
+
+    const int grid_radius = (int)ceil(_InteractRadius / _CellSize2D.x);
+
+    for (int y = -grid_radius; y <= grid_radius; y++)
+        for (int x = -grid_radius; x <= grid_radius; x++)
         {
-            uint h = grid_pos_to_grid_index(c + int2(x, y));
-            int j = _CellHead[h];
-            int it = 0;
-            [loop] while (j != -1 && it < MAX_LIST_ITERS)
+            uint current_grid_index = grid_pos_to_grid_index(grid_pos + int2(x, y));
+            int current_particle_index = _CellHead[current_grid_index];
+
+            [loop] while (current_particle_index != -1)
             {
-                if ((uint)j != i)
+                if ((uint)current_particle_index != particle_index)
                 {
-                    //float2 d = _Pos[j].xy - p;
-                    float2 d = torus_delta(p, _Pos[j].xy, _WorldMin, _WorldMax);
-                    float dist = length(d) + 1e-5;
+                    const float2 distance_vector = torus_delta(particle_pos, _Pos[current_particle_index].xy, _WorldMin, _WorldMax);
+                    const float distance = length(distance_vector);
 
-                    if (dist < _InteractRadius)
+                    if (distance < _InteractRadius)
                     {
-                        float2 n = d / dist;
+                        const float force = calc_force(distance);
 
-                        // user force
-                        float w = 1.0 - dist / _InteractRadius;
-                        float f = _Attract * w; // - _Repel * (w * w);
-
-                        // min distance force
-                        if (dist < _MinDistance)
-                        {
-                            const float wMinDistance = 1.0 - dist / _MinDistance;
-                            const float fMinDistance = -1 * wMinDistance;
-                            f = min(f, fMinDistance);
-                        }
-
-                        F += n * f;
+                        const float2 normalized_direction_vector = distance_vector / distance;
+                        totalForce += normalized_direction_vector * force;
                     }
                 }
-                j = _Next[j];
-                it++;
+                current_particle_index = _Next[current_particle_index];
             }
         }
-    return F;
+    return totalForce;
 }
 
 [numthreads(256,1,1)]

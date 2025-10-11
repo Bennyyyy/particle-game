@@ -4,13 +4,12 @@ public class ParticleLife2D : MonoBehaviour
 {
     [Header("Counts")] public int count = 100_000;
 
-    [Header("Forces (live-tunable)")] [Range(-5, 5f)]
-    public float attract = 1.5f;
+    [Header("Forces (live-tunable)")] [Range(-1, 1f)]
+    public float attract = 0.5f;
     
     [Range(0.01f, 0.1f)]
     public float minDistance = 0.05f;
 
-    [Range(0, 5f)]       public float repel          = 2.0f;
     [Range(0.05f, 2f)]   public float interactRadius = 0.6f;
     [Range(0.90f, 1.0f)] public float damping        = 0.99f;
 
@@ -158,7 +157,6 @@ public class ParticleLife2D : MonoBehaviour
     {
         // Live-Parameter → Compute
         compute.SetFloat("_Attract", attract);
-        compute.SetFloat("_Repel", repel);
         compute.SetFloat("_InteractRadius", interactRadius);
         compute.SetFloat("_Damping", damping);
         compute.SetFloat("_DeltaTime", Time.deltaTime);
