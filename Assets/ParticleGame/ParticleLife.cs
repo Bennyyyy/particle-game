@@ -25,8 +25,8 @@ public class ParticleLife2D : MonoBehaviour
     [Header("Compute")] public ComputeShader compute; // Datei "ParticleLife2D.compute"
 
     // --- intern ---
-    int           kClear,    kClearNext, kHash,    kForces,   kIntegrate;
-    ComputeBuffer posBuffer, velBuffer,  cellHead, nextIndex, argsBuffer;
+    int           kClearGrid, kClearNext, kAddParticlesToGrid, kForces,   kIntegrate;
+    ComputeBuffer posBuffer,  velBuffer,  cellHead,            nextIndex, argsBuffer;
     Bounds        bigBounds;
 
     struct Int2
@@ -70,12 +70,12 @@ public class ParticleLife2D : MonoBehaviour
         material.enableInstancing = true;
 
         // Kernel IDs
-        kClear     = compute.FindKernel("clear_grid");
-        kClearNext = compute.FindKernel("clear_next");
-        kHash      = compute.FindKernel("hash_particles");
-        kForces    = compute.FindKernel("compute_forces");
-        kIntegrate = compute.FindKernel("integrate");
-        if (kClear < 0 || kClearNext < 0 || kHash < 0 || kForces < 0 || kIntegrate < 0)
+        kClearGrid          = compute.FindKernel("clear_grid");
+        kClearNext          = compute.FindKernel("clear_next");
+        kAddParticlesToGrid = compute.FindKernel("add_particles_to_grid");
+        kForces             = compute.FindKernel("compute_forces");
+        kIntegrate          = compute.FindKernel("integrate");
+        if (kClearGrid < 0 || kClearNext < 0 || kAddParticlesToGrid < 0 || kForces < 0 || kIntegrate < 0)
         {
             Debug.LogError("Compute-Kernel nicht gefunden.");
             enabled = false;
@@ -88,7 +88,7 @@ public class ParticleLife2D : MonoBehaviour
         nextIndex = new ComputeBuffer(count, sizeof(int));
 
         var res       = GridRes2D();
-        int cellCount = res.x * res.y;
+        var cellCount = res.x * res.y;
         cellHead = new ComputeBuffer(cellCount, sizeof(int));
 
         // Partikel init
@@ -124,12 +124,12 @@ public class ParticleLife2D : MonoBehaviour
         compute.SetInt("_CellCount", cellCount);
 
         // Buffer Bindings
-        compute.SetBuffer(kClear, "_CellHead", cellHead);
+        compute.SetBuffer(kClearGrid, "_CellHead", cellHead);
         compute.SetBuffer(kClearNext, "_Next", nextIndex);
 
-        compute.SetBuffer(kHash, "_Pos", posBuffer);
-        compute.SetBuffer(kHash, "_CellHead", cellHead);
-        compute.SetBuffer(kHash, "_Next", nextIndex);
+        compute.SetBuffer(kAddParticlesToGrid, "_Pos", posBuffer);
+        compute.SetBuffer(kAddParticlesToGrid, "_CellHead", cellHead);
+        compute.SetBuffer(kAddParticlesToGrid, "_Next", nextIndex);
 
         compute.SetBuffer(kForces, "_Pos", posBuffer);
         compute.SetBuffer(kForces, "_Vel", velBuffer);
@@ -161,9 +161,9 @@ public class ParticleLife2D : MonoBehaviour
         int       tgParticles = Mathf.CeilToInt(count     / (float)TG);
         int       tgCells     = Mathf.CeilToInt(cellCount / (float)TG);
 
-        compute.Dispatch(kClear, tgCells, 1, 1);
+        compute.Dispatch(kClearGrid, tgCells, 1, 1);
         compute.Dispatch(kClearNext, tgParticles, 1, 1);
-        compute.Dispatch(kHash, tgParticles, 1, 1);
+        compute.Dispatch(kAddParticlesToGrid, tgParticles, 1, 1);
         compute.Dispatch(kForces, tgParticles, 1, 1);
         compute.Dispatch(kIntegrate, tgParticles, 1, 1);
 

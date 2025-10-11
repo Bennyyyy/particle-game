@@ -3,7 +3,7 @@
 
 #pragma kernel clear_grid
 #pragma kernel clear_next
-#pragma kernel hash_particles
+#pragma kernel add_particles_to_grid
 #pragma kernel compute_forces
 #pragma kernel integrate
 
@@ -65,7 +65,7 @@ void clear_next(uint3 id : SV_DispatchThreadID)
 }
 
 [numthreads(256,1,1)]
-void hash_particles(uint3 id : SV_DispatchThreadID)
+void add_particles_to_grid(uint3 id : SV_DispatchThreadID)
 {
     // guard
     const uint i = id.x;
