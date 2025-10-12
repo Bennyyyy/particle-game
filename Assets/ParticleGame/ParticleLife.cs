@@ -217,6 +217,11 @@ public class ParticleLife2D : MonoBehaviour
         return true;
     }
 
+    public void UpdateSpecies()
+    {
+        Debug.Log("Update Species");
+    }
+
     public void UpdateWorldSize()
     {
         Debug.Log($"UpdateWorldSize: {worldSizeY}");

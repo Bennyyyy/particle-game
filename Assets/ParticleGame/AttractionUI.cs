@@ -84,6 +84,7 @@ public class AttractionUI : MonoBehaviour
         // --- Globale Parameter (0.01 .. 1.00) ---
         GUILayout.Space(4);
         GUILayout.Label("Global Parameters", labelC);
+        SliderRowInt("species", ref sim.typeCount, 1, 16, () => sim.UpdateSpecies());
         SliderRow("minDistance", ref sim.minDistance, PMin, PMax);
         SliderRow("interactRadius", ref sim.interactRadius, PMin, PMax, () => sim.UpdateGrid());
         SliderRow("dampingFactor", ref sim.dampingFactor, PMin, PMax);
@@ -109,9 +110,15 @@ public class AttractionUI : MonoBehaviour
         FloatFieldUI(ref maxValue, ref maxStr, -10f, 10f, 60);
 
         GUILayout.FlexibleSpace();
-        if (GUILayout.Button("Random [-1..1]", GUILayout.Width(150)))
+        if (GUILayout.Button("Random", GUILayout.Width(150)))
         {
-            RandomizeMatrix(-1f, 1f);
+            RandomizeMatrix(minValue, maxValue);
+            MaybeApply();
+        }
+
+        if (GUILayout.Button("Reset", GUILayout.Width(150)))
+        {
+            SetMatrix(0f);
             MaybeApply();
         }
 
@@ -194,6 +201,25 @@ public class AttractionUI : MonoBehaviour
     }
 
     // ---------- UI Helpers ----------
+
+    void SliderRowInt(string label, ref int value, int min, int max, Action onChange = null)
+    {
+        // clamp und anzeigen
+        value = Mathf.Clamp(value, min, max);
+
+        GUILayout.BeginHorizontal();
+        GUILayout.Label(label, labelC, GUILayout.Width(120));
+        float newVal = GUILayout.HorizontalSlider(value, min, max, GUILayout.MinWidth(180));
+        // Zahl daneben
+        GUILayout.Label(newVal.ToString("F0"), labelC, GUILayout.Width(40));
+        GUILayout.EndHorizontal();
+
+        if (!Mathf.Approximately(newVal, value))
+        {
+            value = (int)newVal;
+            onChange?.Invoke();
+        }
+    }
 
     void SliderRow(string label, ref float value, float min, float max, Action onChange = null)
     {
@@ -332,6 +358,20 @@ public class AttractionUI : MonoBehaviour
                 int idx = i * K + j;
                 sim.attractMat[idx] = a + (float)rng.NextDouble() * range;
             }
+        }
+
+        for (int n = 0; n < sim.attractMat.Length; n++)
+            fieldCache[n] = sim.attractMat[n].ToString("F" + Mathf.Clamp(decimals, 0, 5));
+    }
+
+    void SetMatrix(float a)
+    {
+        int K = sim.typeCount;
+        for (int i = 0; i < K; i++)
+        for (int j = 0; j < K; j++)
+        {
+            int idx = i * K + j;
+            sim.attractMat[idx] = a;
         }
 
         for (int n = 0; n < sim.attractMat.Length; n++)
