@@ -248,8 +248,8 @@ public class ParticleLife2D : MonoBehaviour
     {
         Debug.Log($"UpdateWorldSize: {worldSizeY}");
 
-        _worldMin = new Vector2(-worldSizeY * 1.7f, -worldSizeY);
-        _worldMax = new Vector2(worldSizeY  * 1.7f, worldSizeY);
+        _worldMin = new Vector2(-worldSizeY * 1.6f, -worldSizeY);
+        _worldMax = new Vector2(worldSizeY  * 1.6f, worldSizeY);
 
         _2dCamera.orthographicSize = worldSizeY;
 
