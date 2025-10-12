@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using System.Globalization;
 
@@ -88,6 +89,7 @@ public class AttractionUI : MonoBehaviour
         SliderRow("dampingFactor", ref sim.dampingFactor, PMin, PMax);
         SliderRow("globalMultipler", ref sim.globalMultipler, PMin, PMax);
         SliderRow("particleSize", ref sim.particleSize, PMin, PMax);
+        SliderRow("worldSizeY", ref sim.worldSizeY, 1, 20, () => sim.UpdateWorldSize());
 
         // Optionen (Matrix)
         GUILayout.Space(6);
@@ -193,7 +195,7 @@ public class AttractionUI : MonoBehaviour
 
     // ---------- UI Helpers ----------
 
-    void SliderRow(string label, ref float value, float min, float max)
+    void SliderRow(string label, ref float value, float min, float max, Action onChange = null)
     {
         // clamp und anzeigen
         value = Mathf.Clamp(value, min, max);
@@ -206,7 +208,10 @@ public class AttractionUI : MonoBehaviour
         GUILayout.EndHorizontal();
 
         if (!Mathf.Approximately(newVal, value))
+        {
             value = newVal;
+            onChange?.Invoke();
+        }
     }
 
     void FloatFieldUI(ref float val, ref string cache, float min, float max, float width)

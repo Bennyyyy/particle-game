@@ -294,13 +294,13 @@ MonoBehaviour:
   typeCount: 4
   attractMat: []
   typeColors: []
-  worldMin: {x: -17, y: -10}
-  worldMax: {x: 17, y: 10}
+  worldSizeY: 1
   particleSize: 0.03
   material: {fileID: 2100000, guid: 7147399f32c9140219202b6b87769b0a, type: 2}
   quadMesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
   cellSize: 0.2
   compute: {fileID: 7200000, guid: 0eeed794505e14ba894b2ec68dea18f1, type: 3}
+  _2dCamera: {fileID: 519420031}
 --- !u!4 &868483110
 Transform:
   m_ObjectHideFlags: 0
