@@ -159,7 +159,7 @@ float2 neighbour_force(const uint particle_index, const float2 particle_pos)
                         const uint tj = _Type[current_particle_index];
 
                         const float attraction = pairAttr(ti, tj);
-                        
+
                         const float force = calc_force(distance, attraction);
 
                         const float2 normalized_direction_vector = distance_vector / distance;
@@ -209,6 +209,12 @@ void integrate(uint3 id : SV_DispatchThreadID)
 
     float2 p = _Pos[i].xy;
     float2 v = _Vel[i].xy;
+
+    const float len = length(v);
+    const float max_length = 1;
+
+    if (len > max_length)
+        v = v / len * max_length;
 
     p += v * _DeltaTime;
 
