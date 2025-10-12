@@ -4,23 +4,23 @@ using System.Globalization;
 public class AttractionUI : MonoBehaviour
 {
     public ParticleLife2D sim; // auf dasselbe GameObject hängen oder hier referenzieren
-    public Rect   windowRect    = new Rect(20, 20, 520, 340);
-    public bool   forceSymmetry = true;  // A[i,j] = A[j,i]
-    public float  minValue      = -3f;
-    public float  maxValue      =  3f;
-    public int    decimals      = 2;     // Anzeige-Genauigkeit
-    public bool   autoApply     = true;  // sofort in den GPU-Buffer schreiben
-    public Color  windowColor   = new Color(0.10f, 0.10f, 0.10f, 1f); // undurchsichtig
+    public Rect           windowRect    = new Rect(20, 20, 560, 420);
+    public bool           forceSymmetry = true; // A[i,j] = A[j,i]
+    public float          minValue      = -3f;
+    public float          maxValue      = 3f;
+    public int            decimals      = 2;                                  // Anzeige-Genauigkeit
+    public bool           autoApply     = true;                               // sofort in den GPU-Buffer schreiben (nur Attraction-Matrix)
+    public Color          windowColor   = new Color(0.10f, 0.10f, 0.10f, 1f); // undurchsichtig
 
     // Resize
-    public Vector2 minWindowSize = new Vector2(360f, 220f);
-    const float resizeHandleSize = 16f;
-    bool resizing = false;
-    Vector2 resizeStartMouse;
-    Vector2 resizeStartSize;
+    public Vector2 minWindowSize    = new Vector2(380f, 260f);
+    const  float   resizeHandleSize = 16f;
+    bool           resizing         = false;
+    Vector2        resizeStartMouse;
+    Vector2        resizeStartSize;
 
-    Vector2  scroll;            // Grid-Scroll
-    string[] fieldCache;        // Textfeld-Cache pro Zelle
+    Vector2  scroll;     // Grid-Scroll
+    string[] fieldCache; // Textfeld-Cache pro Zelle
     GUIStyle labelC, fieldC, sliderC, windowSolid;
     string   minStr, maxStr;
 
@@ -28,6 +28,10 @@ public class AttractionUI : MonoBehaviour
     Texture2D texWhite, texWindowBg;
 
     System.Random rng = new System.Random(12345);
+
+    // Slider-Grenzen für die globalen Parameter
+    const float PMin = 0.01f;
+    const float PMax = 1.00f;
 
     void Awake()
     {
@@ -64,23 +68,37 @@ public class AttractionUI : MonoBehaviour
 
     void DrawWindow(int id)
     {
-        if (sim == null) { GUI.DragWindow(); return; }
+        if (sim == null)
+        {
+            GUI.DragWindow();
+            return;
+        }
 
-        // Kopfzeile (ohne Minimize)
+        // Kopfzeile
         GUILayout.BeginHorizontal();
         GUILayout.Label($"Types: {sim.typeCount}", labelC, GUILayout.Width(90));
         GUILayout.FlexibleSpace();
         GUILayout.EndHorizontal();
 
-        // Optionen
+        // --- Globale Parameter (0.01 .. 1.00) ---
+        GUILayout.Space(4);
+        GUILayout.Label("Global Parameters", labelC);
+        SliderRow("minDistance", ref sim.minDistance, PMin, PMax);
+        SliderRow("interactRadius", ref sim.interactRadius, PMin, PMax);
+        SliderRow("dampingFactor", ref sim.dampingFactor, PMin, PMax);
+        SliderRow("globalMultipler", ref sim.globalMultipler, PMin, PMax);
+        SliderRow("particleSize", ref sim.particleSize, PMin, PMax);
+
+        // Optionen (Matrix)
+        GUILayout.Space(6);
         GUILayout.BeginHorizontal();
         forceSymmetry = GUILayout.Toggle(forceSymmetry, "Symmetry", GUILayout.Width(100));
-        autoApply     = GUILayout.Toggle(autoApply,     "Auto Apply", GUILayout.Width(100));
+        autoApply     = GUILayout.Toggle(autoApply, "Auto Apply", GUILayout.Width(100));
         if (GUILayout.Button("Apply", GUILayout.Width(80))) ApplyToGPU();
         GUILayout.FlexibleSpace();
         GUILayout.EndHorizontal();
 
-        // Min/Max + Random
+        // Min/Max + Random (Matrix)
         GUILayout.BeginHorizontal();
         GUILayout.Label("Min", GUILayout.Width(30));
         FloatFieldUI(ref minValue, ref minStr, -10f, 10f, 60);
@@ -94,19 +112,18 @@ public class AttractionUI : MonoBehaviour
             RandomizeMatrix(-1f, 1f);
             MaybeApply();
         }
+
         GUILayout.EndHorizontal();
 
         GUILayout.Space(6);
 
-        int K = sim.typeCount;
-        float colWidth  = 140f;      // Spaltenbreite
-        float colorBox  = 14f;       // Größe der kleinen Farbfelder
+        int   K        = sim.typeCount;
+        float colWidth = 140f; // Spaltenbreite
+        float colorBox = 14f;  // Größe der kleinen Farbfelder
 
-        // Kopfzeile der Matrix: j-Labels mit Farbfelder
-        
-        
+        // Kopfzeile der Matrix: j-Labels mit Farbfeldern
         GUILayout.BeginHorizontal();
-        GUILayout.Space(100);
+        GUILayout.Space(120);
         for (int j = 0; j < K; j++)
         {
             GUILayout.BeginHorizontal(GUILayout.Width(colWidth));
@@ -115,10 +132,11 @@ public class AttractionUI : MonoBehaviour
             GUILayout.Label($"→ j {j}", labelC);
             GUILayout.EndHorizontal();
         }
+
         GUILayout.EndHorizontal();
 
         // Scrollbarer Bereich für KxK-Matrix
-        float scrollHeight = Mathf.Min(240f, 24f + K * 38f);
+        float scrollHeight = Mathf.Min(220f, 24f + K * 38f);
         scroll = GUILayout.BeginScrollView(scroll, false, true, GUILayout.Height(scrollHeight));
 
         for (int i = 0; i < K; i++)
@@ -126,7 +144,7 @@ public class AttractionUI : MonoBehaviour
             GUILayout.BeginHorizontal();
 
             // linke Seitenleiste: i-Label mit Farbfeld
-            GUILayout.BeginHorizontal(GUILayout.Width(100));
+            GUILayout.BeginHorizontal(GUILayout.Width(120));
             DrawTypeColorBox(sim.typeColors, i, colorBox);
             GUILayout.Space(4);
             GUILayout.Label($"i {i} →", labelC);
@@ -155,6 +173,7 @@ public class AttractionUI : MonoBehaviour
                     if (TryParseField(next, out float parsed))
                         SetValue(i, j, Mathf.Clamp(parsed, minValue, maxValue), updateFieldText: false);
                 }
+
                 GUILayout.EndHorizontal();
 
                 GUILayout.EndVertical();
@@ -172,54 +191,23 @@ public class AttractionUI : MonoBehaviour
         GUI.DragWindow();
     }
 
-    // ---------- Resize-Handle ----------
-    void HandleResize(int id)
+    // ---------- UI Helpers ----------
+
+    void SliderRow(string label, ref float value, float min, float max)
     {
-        // Rechteck unten rechts
-        Rect r = new Rect(windowRect.width - resizeHandleSize - 4f,
-                          windowRect.height - resizeHandleSize - 4f,
-                          resizeHandleSize, resizeHandleSize);
+        // clamp und anzeigen
+        value = Mathf.Clamp(value, min, max);
 
-        // kleine diagonale Ecke zeichnen
-        var old = GUI.color;
-        GUI.color = new Color(1,1,1,0.25f);
-        GUI.DrawTexture(r, texWhite);
-        GUI.color = old;
+        GUILayout.BeginHorizontal();
+        GUILayout.Label(label, labelC, GUILayout.Width(120));
+        float newVal = GUILayout.HorizontalSlider(value, min, max, GUILayout.MinWidth(180));
+        // Zahl daneben
+        GUILayout.Label(newVal.ToString("F2"), labelC, GUILayout.Width(40));
+        GUILayout.EndHorizontal();
 
-        // Events auswerten
-        Event e = Event.current;
-        Vector2 mouse = e.mousePosition;
-
-        switch (e.type)
-        {
-            case EventType.MouseDown:
-                if (r.Contains(mouse))
-                {
-                    resizing = true;
-                    resizeStartMouse = GUIUtility.GUIToScreenPoint(mouse);
-                    resizeStartSize = new Vector2(windowRect.width, windowRect.height);
-                    e.Use();
-                }
-                break;
-
-            case EventType.MouseDrag:
-                if (resizing)
-                {
-                    Vector2 screenMouse = GUIUtility.GUIToScreenPoint(mouse);
-                    Vector2 delta = screenMouse - resizeStartMouse;
-                    windowRect.width  = Mathf.Max(minWindowSize.x, resizeStartSize.x + delta.x);
-                    windowRect.height = Mathf.Max(minWindowSize.y, resizeStartSize.y + delta.y);
-                    e.Use();
-                }
-                break;
-
-            case EventType.MouseUp:
-                if (resizing) { resizing = false; e.Use(); }
-                break;
-        }
+        if (!Mathf.Approximately(newVal, value))
+            value = newVal;
     }
-
-    // ---------- Helpers ----------
 
     void FloatFieldUI(ref float val, ref string cache, float min, float max, float width)
     {
@@ -233,11 +221,62 @@ public class AttractionUI : MonoBehaviour
         }
     }
 
+    // ---------- Resize-Handle ----------
+    void HandleResize(int id)
+    {
+        Rect r = new Rect(windowRect.width - resizeHandleSize - 4f,
+            windowRect.height              - resizeHandleSize - 4f,
+            resizeHandleSize, resizeHandleSize);
+
+        var old = GUI.color;
+        GUI.color = new Color(1, 1, 1, 0.25f);
+        GUI.DrawTexture(r, texWhite);
+        GUI.color = old;
+
+        Event   e     = Event.current;
+        Vector2 mouse = e.mousePosition;
+
+        switch (e.type)
+        {
+            case EventType.MouseDown:
+                if (r.Contains(mouse))
+                {
+                    resizing         = true;
+                    resizeStartMouse = GUIUtility.GUIToScreenPoint(mouse);
+                    resizeStartSize  = new Vector2(windowRect.width, windowRect.height);
+                    e.Use();
+                }
+
+                break;
+
+            case EventType.MouseDrag:
+                if (resizing)
+                {
+                    Vector2 screenMouse = GUIUtility.GUIToScreenPoint(mouse);
+                    Vector2 delta       = screenMouse - resizeStartMouse;
+                    windowRect.width  = Mathf.Max(minWindowSize.x, resizeStartSize.x + delta.x);
+                    windowRect.height = Mathf.Max(minWindowSize.y, resizeStartSize.y + delta.y);
+                    e.Use();
+                }
+
+                break;
+
+            case EventType.MouseUp:
+                if (resizing)
+                {
+                    resizing = false;
+                    e.Use();
+                }
+
+                break;
+        }
+    }
+
     void SetValue(int i, int j, float value, bool updateFieldText = true)
     {
-        int K = sim.typeCount;
+        int K   = sim.typeCount;
         int idx = i * K + j;
-        value = Mathf.Clamp(value, minValue, maxValue);
+        value               = Mathf.Clamp(value, minValue, maxValue);
         sim.attractMat[idx] = value;
         if (updateFieldText) fieldCache[idx] = value.ToString("F" + Mathf.Clamp(decimals, 0, 5));
 
@@ -263,19 +302,18 @@ public class AttractionUI : MonoBehaviour
 
     void RandomizeMatrix(float a, float b)
     {
-        int K = sim.typeCount;
+        int   K     = sim.typeCount;
         float range = b - a;
 
         if (forceSymmetry)
         {
-            // obere Dreiecksmatrix randomisieren und spiegeln
             for (int i = 0; i < K; i++)
             {
                 for (int j = i; j < K; j++)
                 {
-                    float v = a + (float)rng.NextDouble() * range;
-                    int idx1 = i * K + j;
-                    int idx2 = j * K + i;
+                    float v    = a + (float)rng.NextDouble() * range;
+                    int   idx1 = i                           * K + j;
+                    int   idx2 = j                           * K + i;
                     sim.attractMat[idx1] = v;
                     sim.attractMat[idx2] = v;
                 }
@@ -291,14 +329,18 @@ public class AttractionUI : MonoBehaviour
             }
         }
 
-        // Field-Cache aktualisieren
         for (int n = 0; n < sim.attractMat.Length; n++)
             fieldCache[n] = sim.attractMat[n].ToString("F" + Mathf.Clamp(decimals, 0, 5));
     }
 
     void SyncFieldCache()
     {
-        if (sim == null || sim.attractMat == null) { fieldCache = null; return; }
+        if (sim == null || sim.attractMat == null)
+        {
+            fieldCache = null;
+            return;
+        }
+
         fieldCache = new string[sim.attractMat.Length];
         for (int n = 0; n < sim.attractMat.Length; n++)
             fieldCache[n] = sim.attractMat[n].ToString("F" + Mathf.Clamp(decimals, 0, 5));
@@ -308,41 +350,47 @@ public class AttractionUI : MonoBehaviour
     {
         s = s.Replace(',', '.');
         if (float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out val)) return true;
-        val = 0; return false;
+        val = 0;
+        return false;
     }
 
     void InitStyles()
     {
         // sichere Erstellung im GUI-Kontext
-        labelC  = new GUIStyle(GUI.skin.label)      { alignment = TextAnchor.MiddleLeft,  fontSize = 12 };
-        fieldC  = new GUIStyle(GUI.skin.textField)  { alignment = TextAnchor.MiddleCenter, fontSize = 12 };
+        labelC  = new GUIStyle(GUI.skin.label) { alignment     = TextAnchor.MiddleLeft, fontSize   = 12 };
+        fieldC  = new GUIStyle(GUI.skin.textField) { alignment = TextAnchor.MiddleCenter, fontSize = 12 };
         sliderC = new GUIStyle(GUI.skin.horizontalSlider);
 
         // 1×1-Texturen für Farbfelder & Fenster-Hintergrund
-        if (texWhite == null) {
+        if (texWhite == null)
+        {
             texWhite = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-            texWhite.SetPixel(0, 0, Color.white); texWhite.Apply();
+            texWhite.SetPixel(0, 0, Color.white);
+            texWhite.Apply();
         }
-        if (texWindowBg == null) {
+
+        if (texWindowBg == null)
+        {
             texWindowBg = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-            texWindowBg.SetPixel(0, 0, windowColor); texWindowBg.Apply();
+            texWindowBg.SetPixel(0, 0, windowColor);
+            texWindowBg.Apply();
         }
 
         // undurchsichtiger Fensterstil
-        windowSolid = new GUIStyle(GUI.skin.window);
+        windowSolid                     = new GUIStyle(GUI.skin.window);
         windowSolid.normal.background   = texWindowBg;
         windowSolid.onNormal.background = texWindowBg;
-        windowSolid.padding = new RectOffset(8, 8, 20, 8);
+        windowSolid.padding             = new RectOffset(8, 8, 20, 8);
     }
 
     void DrawTypeColorBox(Color[] palette, int idx, float size)
     {
         if (palette == null || idx < 0 || idx >= palette.Length) return;
-        Color c = palette[idx];
-        var r = GUILayoutUtility.GetRect(size, size, GUILayout.Width(size), GUILayout.Height(size));
-        var old = GUI.color;
-        GUI.color = c;                 // färbt das weiße Pixel
-        GUI.DrawTexture(r, texWhite);  // füllt Rechteck
+        Color c   = palette[idx];
+        var   r   = GUILayoutUtility.GetRect(size, size, GUILayout.Width(size), GUILayout.Height(size));
+        var   old = GUI.color;
+        GUI.color = c;
+        GUI.DrawTexture(r, texWhite);
         GUI.color = old;
     }
 }
