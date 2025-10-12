@@ -25,10 +25,6 @@ public class ParticleLife2D : MonoBehaviour
     public                       Material material; // Shader "Unlit/Particle2D"
     public                       Mesh     quadMesh; // optional; Built-in Quad wenn null
 
-    [Header("Grid (Nachbarschaft)")]
-    // Faustregel: cellSize ≈ 0.6–0.9 * interactRadius (r ≈ 1–2)
-    public float cellSize = 0.6f;
-
     [Header("Compute")] public ComputeShader compute; // Datei "ParticleLife2D.compute"
 
     public Camera _2dCamera;
@@ -40,6 +36,7 @@ public class ParticleLife2D : MonoBehaviour
 
     private Vector2 _worldMin = new(-1f, -1f);
     private Vector2 _worldMax = new(1f, 1f);
+    float           _cellSize = 0.6f;
 
     private ComputeBuffer _typeBuffer;      // uint per particle
     private ComputeBuffer _attractBuffer;   // float K*K
@@ -60,8 +57,8 @@ public class ParticleLife2D : MonoBehaviour
     {
         Vector2 size = _worldMax - _worldMin;
         return new Int2(
-            Mathf.Max(1, Mathf.FloorToInt(size.x / Mathf.Max(0.0001f, cellSize))),
-            Mathf.Max(1, Mathf.FloorToInt(size.y / Mathf.Max(0.0001f, cellSize)))
+            Mathf.Max(1, Mathf.FloorToInt(size.x / Mathf.Max(0.0001f, _cellSize))),
+            Mathf.Max(1, Mathf.FloorToInt(size.y / Mathf.Max(0.0001f, _cellSize)))
         );
     }
 
@@ -137,10 +134,6 @@ public class ParticleLife2D : MonoBehaviour
         velBuffer = new ComputeBuffer(count, sizeof(float) * 4); // xy vel
         nextIndex = new ComputeBuffer(count, sizeof(int));
 
-        var res       = GridRes2D();
-        var cellCount = res.x * res.y;
-        cellHead = new ComputeBuffer(cellCount, sizeof(int));
-
         // Partikel init
         var rnd = new Random(123);
         var pos = new Vector4[count];
@@ -166,10 +159,10 @@ public class ParticleLife2D : MonoBehaviour
         //bigBounds = new Bounds(Vector3.zero, sizeBounds);
 
         // Statische Uniforms
-        compute.SetInts("_GridRes2D", res.x, res.y);
+        //compute.SetInts("_GridRes2D", res.x, res.y);
         //compute.SetFloats("_WorldMin", worldMin.x, worldMin.y);
         //compute.SetFloats("_WorldMax", worldMax.x, worldMax.y);
-        compute.SetFloats("_CellSize2D", cellSize, cellSize);
+        compute.SetFloats("_CellSize2D", _cellSize, _cellSize);
         compute.SetInt("_ParticleCount", count);
         //compute.SetInt("_CellCount", cellCount);
         compute.SetInt("_TypeCount", typeCount);
@@ -197,8 +190,6 @@ public class ParticleLife2D : MonoBehaviour
         material.SetBuffer("_Pos", posBuffer);
         material.SetBuffer("_Type", _typeBuffer);
         material.SetBuffer("_TypeColor", _typeColorBuffer);
-
-        Debug.Log($"ParticleLife2D: Grid {res.x}x{res.y}={cellCount} cells, Particles={count}");
     }
 
     private bool InitComputeShader()
@@ -230,13 +221,6 @@ public class ParticleLife2D : MonoBehaviour
     {
         Debug.Log($"UpdateWorldSize: {worldSizeY}");
 
-        // clean
-        if (cellHead != null)
-        {
-            cellHead?.Release();
-            cellHead = null;
-        }
-
         _worldMin = new Vector2(-worldSizeY * 1.7f, -worldSizeY);
         _worldMax = new Vector2(worldSizeY  * 1.7f, worldSizeY);
 
@@ -246,13 +230,34 @@ public class ParticleLife2D : MonoBehaviour
         var sizeBounds = new Vector3(_worldMax.x - _worldMin.x, _worldMax.y - _worldMin.y, 20f) + Vector3.one * 10f;
         bigBounds = new Bounds(Vector3.zero, sizeBounds);
 
+        compute.SetFloats("_WorldMin", _worldMin.x, _worldMin.y);
+        compute.SetFloats("_WorldMax", _worldMax.x, _worldMax.y);
+
+        UpdateGrid();
+
+        Debug.Log($"UpdateWorldSize Done");
+    }
+
+    public void UpdateGrid()
+    {
+        // clean
+        if (cellHead != null)
+        {
+            cellHead?.Release();
+            cellHead = null;
+        }
+
+        // calc cell size
+        // Faustregel: cellSize ≈ 0.6–0.9 * interactRadius (r ≈ 1–2)
+        _cellSize = interactRadius * 0.7f;
+
         // calc grid
         var res       = GridRes2D();
         var cellCount = res.x * res.y;
 
         // set size
-        compute.SetFloats("_WorldMin", _worldMin.x, _worldMin.y);
-        compute.SetFloats("_WorldMax", _worldMax.x, _worldMax.y);
+        compute.SetFloats("_CellSize2D", _cellSize, _cellSize);
+        compute.SetInts("_GridRes2D", res.x, res.y);
         compute.SetInt("_CellCount", cellCount);
 
         // create and link buffer
@@ -260,8 +265,6 @@ public class ParticleLife2D : MonoBehaviour
         compute.SetBuffer(kClearGrid, "_CellHead", cellHead);
         compute.SetBuffer(kAddParticlesToGrid, "_CellHead", cellHead);
         compute.SetBuffer(kForces, "_CellHead", cellHead);
-
-        Debug.Log($"UpdateWorldSize Done");
     }
 
     void Update()
