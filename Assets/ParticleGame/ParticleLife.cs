@@ -92,7 +92,108 @@ public class ParticleLife2D : MonoBehaviour
             return;
 
         UpdateWorldSize();
+        UpdateCount();
+    }
 
+    private bool InitComputeShader()
+    {
+        if (compute == null)
+        {
+            Debug.LogError("Bitte Compute Shader 'ParticleLife2D.compute' zuweisen.");
+            enabled = false;
+            return false;
+        }
+
+        // Kernel IDs
+        kClearGrid          = compute.FindKernel("clear_grid");
+        kClearNext          = compute.FindKernel("clear_next");
+        kAddParticlesToGrid = compute.FindKernel("add_particles_to_grid");
+        kForces             = compute.FindKernel("compute_forces");
+        kIntegrate          = compute.FindKernel("integrate");
+        if (kClearGrid < 0 || kClearNext < 0 || kAddParticlesToGrid < 0 || kForces < 0 || kIntegrate < 0)
+        {
+            Debug.LogError("Compute-Kernel nicht gefunden.");
+            enabled = false;
+            return false;
+        }
+
+        return true;
+    }
+
+    private void UpdateCount()
+    {
+        Debug.Log("UpdateCount");
+        
+        // Clear
+        posBuffer?.Release();
+        posBuffer = null;
+        velBuffer?.Release();
+        velBuffer = null;
+        nextIndex?.Release();
+        nextIndex = null;
+        argsBuffer?.Release();
+        argsBuffer = null;
+
+        // Buffers
+        posBuffer = new ComputeBuffer(count, sizeof(float) * 4); // xy pos, z=0, w=size
+        velBuffer = new ComputeBuffer(count, sizeof(float) * 4); // xy vel
+        nextIndex = new ComputeBuffer(count, sizeof(int));
+
+        // Partikel init
+        var rnd = new Random(123);
+        var pos = new Vector4[count];
+        var vel = new Vector4[count];
+        for (int i = 0; i < count; i++)
+        {
+            float rx = Mathf.Lerp(_worldMin.x, _worldMax.x, (float)rnd.NextDouble());
+            float ry = Mathf.Lerp(_worldMin.y, _worldMax.y, (float)rnd.NextDouble());
+            pos[i] = new Vector4(rx, ry, 0f, particleSize);
+            vel[i] = Vector4.zero;
+        }
+
+        posBuffer.SetData(pos);
+        velBuffer.SetData(vel);
+
+        // Indirect Draw Args
+        argsBuffer = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
+        uint[] args = { quadMesh.GetIndexCount(0), (uint)count, 0, 0, 0 };
+        argsBuffer.SetData(args);
+
+        // Statische Uniforms
+        compute.SetInt("_ParticleCount", count);
+
+        // Buffer Bindings
+        compute.SetBuffer(kClearNext, "_Next", nextIndex);
+
+        compute.SetBuffer(kAddParticlesToGrid, "_Pos", posBuffer);
+        compute.SetBuffer(kAddParticlesToGrid, "_Next", nextIndex);
+
+        compute.SetBuffer(kForces, "_Pos", posBuffer);
+        compute.SetBuffer(kForces, "_Vel", velBuffer);
+        compute.SetBuffer(kForces, "_Next", nextIndex);
+
+        compute.SetBuffer(kIntegrate, "_Pos", posBuffer);
+        compute.SetBuffer(kIntegrate, "_Vel", velBuffer);
+
+        // Material → Pos-Buffer
+        material.SetBuffer("_Pos", posBuffer);
+        
+        UpdateSpecies();
+    }
+
+    public void UpdateSpecies()
+    {
+        Debug.Log("UpdateSpecies");
+        
+        // Clear
+        _typeBuffer?.Release();
+        _typeBuffer = null;
+        _attractBuffer?.Release();
+        _attractBuffer = null;
+        _typeColorBuffer?.Release();
+        _typeColorBuffer = null;
+        
+        // calc
         if (typeCount <= 0)
         {
             typeCount = 1;
@@ -100,6 +201,7 @@ public class ParticleLife2D : MonoBehaviour
 
         if (attractMat == null || attractMat.Length != typeCount * typeCount)
             attractMat = new float[typeCount * typeCount];
+
         if (typeColors == null || typeColors.Length != typeCount)
         {
             typeColors = new Color[typeCount];
@@ -129,97 +231,17 @@ public class ParticleLife2D : MonoBehaviour
 
         _typeColorBuffer.SetData(cols);
 
-        // Buffers
-        posBuffer = new ComputeBuffer(count, sizeof(float) * 4); // xy pos, z=0, w=size
-        velBuffer = new ComputeBuffer(count, sizeof(float) * 4); // xy vel
-        nextIndex = new ComputeBuffer(count, sizeof(int));
-
-        // Partikel init
-        var rnd = new Random(123);
-        var pos = new Vector4[count];
-        var vel = new Vector4[count];
-        for (int i = 0; i < count; i++)
-        {
-            float rx = Mathf.Lerp(_worldMin.x, _worldMax.x, (float)rnd.NextDouble());
-            float ry = Mathf.Lerp(_worldMin.y, _worldMax.y, (float)rnd.NextDouble());
-            pos[i] = new Vector4(rx, ry, 0f, particleSize);
-            vel[i] = Vector4.zero;
-        }
-
-        posBuffer.SetData(pos);
-        velBuffer.SetData(vel);
-
-        // Indirect Draw Args
-        argsBuffer = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
-        uint[] args = { quadMesh.GetIndexCount(0), (uint)count, 0, 0, 0 };
-        argsBuffer.SetData(args);
-
-        // Große Bounds (Z groß genug)
-        //var sizeBounds = new Vector3(worldMax.x - worldMin.x, worldMax.y - worldMin.y, 20f) + Vector3.one * 10f;
-        //bigBounds = new Bounds(Vector3.zero, sizeBounds);
-
         // Statische Uniforms
-        //compute.SetInts("_GridRes2D", res.x, res.y);
-        //compute.SetFloats("_WorldMin", worldMin.x, worldMin.y);
-        //compute.SetFloats("_WorldMax", worldMax.x, worldMax.y);
-        compute.SetFloats("_CellSize2D", _cellSize, _cellSize);
-        compute.SetInt("_ParticleCount", count);
-        //compute.SetInt("_CellCount", cellCount);
         compute.SetInt("_TypeCount", typeCount);
 
         // Buffer Bindings
-        //compute.SetBuffer(kClearGrid, "_CellHead", cellHead);
-        compute.SetBuffer(kClearNext, "_Next", nextIndex);
-
-        compute.SetBuffer(kAddParticlesToGrid, "_Pos", posBuffer);
-        //compute.SetBuffer(kAddParticlesToGrid, "_CellHead", cellHead);
-        compute.SetBuffer(kAddParticlesToGrid, "_Next", nextIndex);
         compute.SetBuffer(kAddParticlesToGrid, "_Type", _typeBuffer);
-
-        compute.SetBuffer(kForces, "_Pos", posBuffer);
-        compute.SetBuffer(kForces, "_Vel", velBuffer);
-        //compute.SetBuffer(kForces, "_CellHead", cellHead);
-        compute.SetBuffer(kForces, "_Next", nextIndex);
         compute.SetBuffer(kForces, "_Type", _typeBuffer);
         compute.SetBuffer(kForces, "_AttractMat", _attractBuffer);
 
-        compute.SetBuffer(kIntegrate, "_Pos", posBuffer);
-        compute.SetBuffer(kIntegrate, "_Vel", velBuffer);
-
         // Material → Pos-Buffer
-        material.SetBuffer("_Pos", posBuffer);
         material.SetBuffer("_Type", _typeBuffer);
         material.SetBuffer("_TypeColor", _typeColorBuffer);
-    }
-
-    private bool InitComputeShader()
-    {
-        if (compute == null)
-        {
-            Debug.LogError("Bitte Compute Shader 'ParticleLife2D.compute' zuweisen.");
-            enabled = false;
-            return false;
-        }
-
-        // Kernel IDs
-        kClearGrid          = compute.FindKernel("clear_grid");
-        kClearNext          = compute.FindKernel("clear_next");
-        kAddParticlesToGrid = compute.FindKernel("add_particles_to_grid");
-        kForces             = compute.FindKernel("compute_forces");
-        kIntegrate          = compute.FindKernel("integrate");
-        if (kClearGrid < 0 || kClearNext < 0 || kAddParticlesToGrid < 0 || kForces < 0 || kIntegrate < 0)
-        {
-            Debug.LogError("Compute-Kernel nicht gefunden.");
-            enabled = false;
-            return false;
-        }
-
-        return true;
-    }
-
-    public void UpdateSpecies()
-    {
-        Debug.Log("Update Species");
     }
 
     public void UpdateWorldSize()
