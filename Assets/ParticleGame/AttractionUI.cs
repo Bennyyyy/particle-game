@@ -77,18 +77,26 @@ public class AttractionUI : MonoBehaviour
 
         // Kopfzeile
         GUILayout.BeginHorizontal();
-        GUILayout.Label($"Types: {sim.typeCount}", labelC, GUILayout.Width(90));
         GUILayout.FlexibleSpace();
         GUILayout.EndHorizontal();
 
         // --- Globale Parameter (0.01 .. 1.00) ---
         GUILayout.Space(4);
-        GUILayout.Label("Global Parameters", labelC);
+        GUILayout.Label("Parameter", labelC);
+        
+        // Counts
+        SliderRowInt("particles", ref sim.count, 10, 10_000, () => sim.UpdateCount());
         SliderRowInt("species", ref sim.typeCount, 1, 16, () => sim.UpdateSpecies());
-        SliderRow("minDistance", ref sim.minDistance, PMin, PMax);
-        SliderRow("interactRadius", ref sim.interactRadius, PMin, PMax, () => sim.UpdateGrid());
+        
+        // Interaction
+        SliderRow("minDistance", ref sim.minDistance, PMin, 2.0f);
+        SliderRow("interactRadius", ref sim.interactRadius, PMin, 2.0f, () => sim.UpdateGrid());
+        
+        // Energy
         SliderRow("dampingFactor", ref sim.dampingFactor, PMin, PMax);
         SliderRow("globalMultipler", ref sim.globalMultipler, PMin, PMax);
+        
+        // World Size
         SliderRow("particleSize", ref sim.particleSize, PMin, PMax);
         SliderRow("worldSize", ref sim.worldSizeY, 1, 20, () => sim.UpdateWorldSize());
 
@@ -218,6 +226,8 @@ public class AttractionUI : MonoBehaviour
         {
             value = (int)newVal;
             onChange?.Invoke();
+            SyncFieldCache();
+            GUIUtility.ExitGUI();  
         }
     }
 

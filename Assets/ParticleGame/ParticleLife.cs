@@ -120,7 +120,7 @@ public class ParticleLife2D : MonoBehaviour
         return true;
     }
 
-    private void UpdateCount()
+    public void UpdateCount()
     {
         Debug.Log("UpdateCount");
         
