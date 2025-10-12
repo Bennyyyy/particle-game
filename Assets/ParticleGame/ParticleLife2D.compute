@@ -209,13 +209,13 @@ void integrate(uint3 id : SV_DispatchThreadID)
 
     float2 p = _Pos[i].xy;
     float2 v = _Vel[i].xy;
-
+/*
     const float len = length(v);
     const float max_length = 1;
 
     if (len > max_length)
         v = v / len * max_length;
-
+*/
     p += v * _DeltaTime;
 
     // Soft-Guard gegen Ausreißer (keine Kollisionen)

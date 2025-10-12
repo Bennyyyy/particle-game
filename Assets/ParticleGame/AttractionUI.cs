@@ -89,7 +89,7 @@ public class AttractionUI : MonoBehaviour
         SliderRow("dampingFactor", ref sim.dampingFactor, PMin, PMax);
         SliderRow("globalMultipler", ref sim.globalMultipler, PMin, PMax);
         SliderRow("particleSize", ref sim.particleSize, PMin, PMax);
-        SliderRow("worldSizeY", ref sim.worldSizeY, 1, 20, () => sim.UpdateWorldSize());
+        SliderRow("worldSize", ref sim.worldSizeY, 1, 20, () => sim.UpdateWorldSize());
 
         // Optionen (Matrix)
         GUILayout.Space(6);
