@@ -85,7 +85,7 @@ public class AttractionUI : MonoBehaviour
         GUILayout.Space(4);
         GUILayout.Label("Global Parameters", labelC);
         SliderRow("minDistance", ref sim.minDistance, PMin, PMax);
-        SliderRow("interactRadius", ref sim.interactRadius, PMin, PMax);
+        SliderRow("interactRadius", ref sim.interactRadius, PMin, PMax, () => sim.UpdateGrid());
         SliderRow("dampingFactor", ref sim.dampingFactor, PMin, PMax);
         SliderRow("globalMultipler", ref sim.globalMultipler, PMin, PMax);
         SliderRow("particleSize", ref sim.particleSize, PMin, PMax);
