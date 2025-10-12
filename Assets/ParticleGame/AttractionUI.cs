@@ -85,8 +85,8 @@ public class AttractionUI : MonoBehaviour
         GUILayout.Label("Parameter", labelC);
         
         // Counts
-        SliderRowInt("particles", ref sim.count, 10, 10_000, () => sim.UpdateCount());
-        SliderRowInt("species", ref sim.typeCount, 1, 16, () => sim.UpdateSpecies());
+        SliderRowInt("particles", ref sim.count, 10, 50_000, () => sim.UpdateCount());
+        SliderRowInt("species", ref sim.typeCount, 1, 32, () => sim.UpdateSpecies());
         
         // Interaction
         SliderRow("minDistance", ref sim.minDistance, PMin, 2.0f);
